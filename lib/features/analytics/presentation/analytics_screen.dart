@@ -32,7 +32,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         build: (_) => pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text('Отчёт о здоровье',
+                  pw.Text('Отчёт о здоровье — пример данных',
                       style: pw.TextStyle(font: bold, fontSize: 24)),
                   pw.SizedBox(height: 20),
                   pw.Text('Имя: ${widget.user.name}',
@@ -232,11 +232,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           '${widget.activity.sleepMinutes ~/ 60} ч ${widget.activity.sleepMinutes % 60} мин')),
                   const SizedBox(width: 10),
                   Expanded(
-                      child: _SleepMetric('Пульс во сне',
-                          '${widget.activity.heartRate == 0 ? 0 : widget.activity.heartRate - 14} уд/мин'))
+                      child: _SleepMetric(
+                          'Пульс', '${widget.activity.heartRate} уд/мин'))
                 ]),
                 const SizedBox(height: 16),
-                const Text('Фазы сна', style: TextStyle(fontSize: 12)),
+                const Text('Фазы сна — пример', style: TextStyle(fontSize: 12)),
                 const SizedBox(height: 6),
                 const Row(children: [
                   Expanded(

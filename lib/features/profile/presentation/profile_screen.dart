@@ -22,10 +22,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool health = false;
-  bool watch = false;
-  bool notifications = true;
-
   Future<void> edit() async {
     final name = TextEditingController(text: widget.user.name);
     final height =
@@ -205,24 +201,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle: const Text('Подключение будет доступно позже'),
                     secondary:
                         const Icon(Icons.favorite_outline, color: Colors.red),
-                    value: health,
-                    onChanged: (v) => setState(() => health = v)),
+                    value: false,
+                    onChanged: null),
                 const Divider(height: 1),
                 SwitchListTile(
                     title: const Text('Смарт-часы'),
                     subtitle: const Text('Подключение будет доступно позже'),
                     secondary:
                         const Icon(Icons.watch_outlined, color: AppColors.blue),
-                    value: watch,
-                    onChanged: (v) => setState(() => watch = v)),
+                    value: false,
+                    onChanged: null),
                 const Divider(height: 1),
                 SwitchListTile(
                     title: const Text('Уведомления'),
-                    subtitle: const Text('Напоминания о воде и еде'),
+                    subtitle: const Text('Настройка будет доступна позже'),
                     secondary: const Icon(Icons.notifications_outlined,
                         color: AppColors.orange),
-                    value: notifications,
-                    onChanged: (v) => setState(() => notifications = v))
+                    value: false,
+                    onChanged: null)
               ])),
           const SizedBox(height: 20),
           Text('Поддержка и приложение',

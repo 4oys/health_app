@@ -57,7 +57,7 @@ class DashboardScreen extends StatelessWidget {
           Text('Привет, ${user.name}!',
               style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 5),
-          const Text('●  Данные активности сохранены на устройстве',
+          const Text('●  Пример данных активности',
               style: TextStyle(fontSize: 11, color: AppColors.green)),
           const SizedBox(height: 20),
           WhiteCard(
