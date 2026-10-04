@@ -120,6 +120,23 @@ class HealthRepository {
         .toList();
   }
 
+  Future<int> addProduct(
+      {required String name,
+      required double kcal,
+      required double protein,
+      required double fat,
+      required double carbs,
+      String barcode = ''}) async {
+    return (await _db).insert('products', {
+      'name': name.trim(),
+      'kcal': kcal,
+      'protein': protein,
+      'fat': fat,
+      'carbs': carbs,
+      'barcode': barcode.trim(),
+    });
+  }
+
   Future<List<FoodEntry>> entries(DateTime date) async {
     final key = date.toIso8601String().substring(0, 10);
     final rows = await (await _db).rawQuery(

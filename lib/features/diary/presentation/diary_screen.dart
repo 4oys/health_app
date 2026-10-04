@@ -37,6 +37,15 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final barcode = await Navigator.of(context).push<String>(
         MaterialPageRoute(builder: (_) => const _ScannerScreen()));
     if (barcode == null || !mounted) return;
+    final matches = await widget.repository.products(barcode);
+    if (!mounted) return;
+    if (matches.isEmpty) {
+      final created = await showDialog<bool>(
+          context: context,
+          builder: (_) => _NewProductDialog(
+              repository: widget.repository, barcode: barcode));
+      if (created != true || !mounted) return;
+    }
     search.text = barcode;
     setState(() => searching = true);
   }
@@ -308,6 +317,88 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
                         if (context.mounted) Navigator.pop(context);
                       })
           ]));
+}
+
+class _NewProductDialog extends StatefulWidget {
+  const _NewProductDialog({required this.repository, required this.barcode});
+  final HealthRepository repository;
+  final String barcode;
+  @override
+  State<_NewProductDialog> createState() => _NewProductDialogState();
+}
+
+class _NewProductDialogState extends State<_NewProductDialog> {
+  final name = TextEditingController();
+  final kcal = TextEditingController();
+  final protein = TextEditingController();
+  final fat = TextEditingController();
+  final carbs = TextEditingController();
+  @override
+  void dispose() {
+    for (final c in [name, kcal, protein, fat, carbs]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    double? number(TextEditingController c) =>
+        double.tryParse(c.text.replaceAll(',', '.'));
+    final values = [kcal, protein, fat, carbs].map(number).toList();
+    if (name.text.trim().isEmpty || values.any((v) => v == null || v < 0)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Заполните название и КБЖУ на 100 г')));
+      return;
+    }
+    await widget.repository.addProduct(
+        name: name.text,
+        kcal: values[0]!,
+        protein: values[1]!,
+        fat: values[2]!,
+        carbs: values[3]!,
+        barcode: widget.barcode);
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Новый продукт'),
+        content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Штрихкод: ${widget.barcode}'),
+          const SizedBox(height: 10),
+          TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: 'Название')),
+          const SizedBox(height: 8),
+          TextField(
+              controller: kcal,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Ккал на 100 г')),
+          const SizedBox(height: 8),
+          TextField(
+              controller: protein,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Белки на 100 г')),
+          const SizedBox(height: 8),
+          TextField(
+              controller: fat,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Жиры на 100 г')),
+          const SizedBox(height: 8),
+          TextField(
+              controller: carbs,
+              keyboardType: TextInputType.number,
+              decoration:
+                  const InputDecoration(labelText: 'Углеводы на 100 г')),
+        ])),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Отмена')),
+          FilledButton(onPressed: save, child: const Text('Сохранить'))
+        ],
+      );
 }
 
 class _ScannerScreen extends StatefulWidget {
