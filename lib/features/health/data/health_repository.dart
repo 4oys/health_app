@@ -305,6 +305,8 @@ class HealthRepository {
   Future<void> deleteAccount() async {
     final db = await _db;
     await db.transaction((txn) async {
+      await txn.delete('app_state',
+          where: 'key IN (?, ?)', whereArgs: ['health_sync', 'notifications']);
       for (final table in [
         'food_entries',
         'weight_history',
@@ -321,6 +323,18 @@ class HealthRepository {
           .map((r) => WeightRecord(
               DateTime.parse(r['date'] as String), (r['kg'] as num).toDouble()))
           .toList();
+  Future<bool> notificationsEnabled() async {
+    final rows = await (await _db)
+        .query('app_state', where: 'key = ?', whereArgs: ['notifications']);
+    return rows.isNotEmpty && rows.first['value'] == '1';
+  }
+
+  Future<void> setNotificationsEnabled(bool enabled) async {
+    await (await _db).insert(
+        'app_state', {'key': 'notifications', 'value': enabled ? '1' : '0'},
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   Future<bool> healthSyncEnabled() async {
     final rows = await (await _db)
         .query('app_state', where: 'key = ?', whereArgs: ['health_sync']);

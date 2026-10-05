@@ -13,10 +13,14 @@ class ProfileScreen extends StatefulWidget {
       required this.onSignOut,
       required this.onDeleteAccount,
       this.healthConnected = false,
-      this.onHealthChanged});
+      this.onHealthChanged,
+      this.notificationsEnabled = false,
+      this.onNotificationsChanged});
   final HealthRepository repository;
   final bool healthConnected;
   final Future<void> Function(bool)? onHealthChanged;
+  final bool notificationsEnabled;
+  final Future<void> Function(bool)? onNotificationsChanged;
   final UserProfile user;
   final VoidCallback onChange;
   final VoidCallback onSignOut;
@@ -222,11 +226,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const Divider(height: 1),
                 SwitchListTile(
                     title: const Text('Уведомления'),
-                    subtitle: const Text('Настройка будет доступна позже'),
+                    subtitle: const Text('Ежедневно в 12:00 и 19:00'),
                     secondary: const Icon(Icons.notifications_outlined,
                         color: AppColors.orange),
-                    value: false,
-                    onChanged: null)
+                    value: widget.notificationsEnabled,
+                    onChanged: widget.onNotificationsChanged)
               ])),
           const SizedBox(height: 20),
           Text('Поддержка и приложение',

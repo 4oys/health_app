@@ -7,6 +7,7 @@ import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/diary/presentation/diary_screen.dart';
 import '../features/analytics/presentation/analytics_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
+import '../features/profile/data/notification_service.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell(
@@ -30,6 +31,8 @@ class _AppShellState extends State<AppShell> {
   List<WeightRecord> weights = [];
   bool loading = true;
   bool healthConnected = false;
+  bool notificationsEnabled = false;
+  final notifications = NotificationService();
   final healthSync = HealthSyncService();
 
   @override
@@ -40,6 +43,7 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> refresh() async {
     final enabled = await widget.repository.healthSyncEnabled();
+    final notificationsOn = await widget.repository.notificationsEnabled();
     if (enabled) {
       try {
         await widget.repository.saveActivity(await healthSync.read(date));
@@ -61,6 +65,7 @@ class _AppShellState extends State<AppShell> {
       weights = values[3] as List<WeightRecord>;
       loading = false;
       healthConnected = enabled;
+      notificationsEnabled = notificationsOn;
     });
   }
 
@@ -90,6 +95,30 @@ class _AppShellState extends State<AppShell> {
     }
     await widget.repository.setHealthSyncEnabled(enabled);
     await refresh();
+  }
+
+  Future<void> toggleNotifications(bool enabled) async {
+    try {
+      if (enabled) {
+        final granted = await notifications.enable();
+        if (!granted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Разрешение на уведомления не предоставлено')));
+          }
+          return;
+        }
+      } else {
+        await notifications.disable();
+      }
+      await widget.repository.setNotificationsEnabled(enabled);
+      if (mounted) setState(() => notificationsEnabled = enabled);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Не удалось настроить уведомления')));
+      }
+    }
   }
 
   Future<void> selectDate() async {
@@ -163,10 +192,22 @@ class _AppShellState extends State<AppShell> {
                     repository: widget.repository,
                     healthConnected: healthConnected,
                     onHealthChanged: toggleHealth,
+                    notificationsEnabled: notificationsEnabled,
+                    onNotificationsChanged: toggleNotifications,
                     user: user,
                     onChange: refresh,
-                    onSignOut: widget.onSignOut,
-                    onDeleteAccount: widget.onDeleteAccount),
+                    onSignOut: () async {
+                      await toggleNotifications(false);
+                      widget.onSignOut();
+                    },
+                    onDeleteAccount: () async {
+                      try {
+                        await notifications.disable();
+                      } catch (_) {
+                        // Account deletion must still proceed if the OS is unavailable.
+                      }
+                      await widget.onDeleteAccount();
+                    }),
               ]),
         bottomNavigationBar: NavigationBar(
           backgroundColor: AppColors.background,
