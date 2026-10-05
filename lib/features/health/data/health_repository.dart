@@ -1,9 +1,118 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
 import '../domain/models.dart';
 import 'health_database.dart';
 
+class ProductLookupException implements Exception {
+  const ProductLookupException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 class HealthRepository {
+  HealthRepository({http.Client? httpClient})
+      : _http = httpClient ?? http.Client();
+
+  final http.Client _http;
   Future<Database> get _db => HealthDatabase.instance;
+  static const _headers = {
+    'User-Agent': 'HealthApp/1.0 (https://github.com/4oys/health_app)',
+    'Accept': 'application/json',
+  };
+
+  Future<Map<String, dynamic>> _getJson(Uri uri) async {
+    try {
+      final response = await _http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 429) {
+        throw const ProductLookupException(
+            'Слишком много запросов. Повторите позже.');
+      }
+      if (response.statusCode != 200) {
+        throw const ProductLookupException(
+            'Каталог продуктов временно недоступен.');
+      }
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic>) throw const FormatException();
+      return decoded;
+    } on ProductLookupException {
+      rethrow;
+    } on SocketException {
+      throw const ProductLookupException('Нет подключения к интернету.');
+    } on http.ClientException {
+      throw const ProductLookupException('Не удалось подключиться к каталогу.');
+    } on TimeoutException {
+      throw const ProductLookupException('Время ожидания ответа истекло.');
+    } on FormatException {
+      throw const ProductLookupException('Каталог вернул неверный ответ.');
+    }
+  }
+
+  Product? _remoteProduct(dynamic value) {
+    if (value is! Map<String, dynamic>) return null;
+    final name = (value['product_name_ru'] ?? value['product_name'] ?? '')
+        .toString()
+        .trim();
+    final nutrients = value['nutriments'];
+    if (name.isEmpty || nutrients is! Map<String, dynamic>) return null;
+    double? number(dynamic value) => value is num
+        ? value.toDouble()
+        : double.tryParse(value?.toString() ?? '');
+    final kcal = number(nutrients['energy-kcal_100g']) ??
+        ((number(nutrients['energy_100g']) ?? -1) / 4.184);
+    final protein = number(nutrients['proteins_100g']);
+    final fat = number(nutrients['fat_100g']);
+    final carbs = number(nutrients['carbohydrates_100g']);
+    if (kcal < 0 ||
+        protein == null ||
+        fat == null ||
+        carbs == null ||
+        protein < 0 ||
+        fat < 0 ||
+        carbs < 0) {
+      return null;
+    }
+    return Product(
+        id: 0,
+        name: name,
+        kcal: kcal,
+        protein: protein,
+        fat: fat,
+        carbs: carbs,
+        barcode: (value['code'] ?? '').toString());
+  }
+
+  Future<List<Product>> searchProductsOnline(String query) async {
+    if (query.trim().isEmpty) return [];
+    final data =
+        await _getJson(Uri.https('world.openfoodfacts.org', '/cgi/search.pl', {
+      'search_terms': query.trim(),
+      'search_simple': '1',
+      'action': 'process',
+      'json': '1',
+      'page_size': '20',
+      'fields': 'code,product_name,product_name_ru,nutriments',
+    }));
+    final products = data['products'];
+    if (products is! List) return [];
+    return products.map(_remoteProduct).whereType<Product>().toList();
+  }
+
+  Future<Product?> findProductByBarcodeOnline(String barcode) async {
+    final code = barcode.trim();
+    if (!RegExp(r'^\d{8,14}$').hasMatch(code)) return null;
+    final data = await _getJson(
+        Uri.https('world.openfoodfacts.org', '/api/v2/product/$code.json', {
+      'fields': 'code,product_name,product_name_ru,nutriments',
+    }));
+    if (data['status'] != 1) return null;
+    return _remoteProduct(data['product']);
+  }
 
   Future<void> seed() async {
     final db = await _db;
@@ -161,8 +270,28 @@ class HealthRepository {
 
   Future<void> addEntry(
       Product product, String meal, double grams, DateTime date) async {
+    var productId = product.id;
+    if (productId == 0) {
+      final db = await _db;
+      final existing = product.barcode.isEmpty
+          ? <Map<String, Object?>>[]
+          : await db.query('products',
+              columns: ['id'],
+              where: 'barcode = ?',
+              whereArgs: [product.barcode],
+              limit: 1);
+      productId = existing.isNotEmpty
+          ? existing.first['id'] as int
+          : await addProduct(
+              name: product.name,
+              kcal: product.kcal,
+              protein: product.protein,
+              fat: product.fat,
+              carbs: product.carbs,
+              barcode: product.barcode);
+    }
     await (await _db).insert('food_entries', {
-      'product_id': product.id,
+      'product_id': productId,
       'meal': meal,
       'grams': grams,
       'date': date.toIso8601String().substring(0, 10)

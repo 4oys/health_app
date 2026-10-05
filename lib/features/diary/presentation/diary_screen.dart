@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/theme.dart';
@@ -27,8 +28,69 @@ class DiaryScreen extends StatefulWidget {
 class _DiaryScreenState extends State<DiaryScreen> {
   final search = TextEditingController();
   bool searching = false;
+  bool loading = false;
+  String? searchError;
+  List<Product> results = [];
+  Timer? searchTimer;
+  DateTime? lastOnlineSearch;
+  int searchVersion = 0;
+
+  void onSearchChanged(String value) {
+    searchTimer?.cancel();
+    final version = ++searchVersion;
+    setState(() {
+      searching = value.trim().isNotEmpty;
+      loading = searching;
+      searchError = null;
+      results = [];
+    });
+    if (!searching) return;
+    searchTimer = Timer(
+        const Duration(milliseconds: 700), () => runSearch(value, version));
+  }
+
+  Future<void> runSearch(String query, int version) async {
+    try {
+      final local = await widget.repository.products(query);
+      if (!mounted || version != searchVersion) return;
+      setState(() => results = local);
+      if (query.trim().length < 2) {
+        setState(() => loading = false);
+        return;
+      }
+      final last = lastOnlineSearch;
+      if (last != null) {
+        final wait =
+            const Duration(seconds: 6) - DateTime.now().difference(last);
+        if (wait > Duration.zero) await Future<void>.delayed(wait);
+      }
+      if (!mounted || version != searchVersion) return;
+      lastOnlineSearch = DateTime.now();
+      final online = await widget.repository.searchProductsOnline(query);
+      if (!mounted || version != searchVersion) return;
+      final known = local
+          .where((p) => p.barcode.isNotEmpty)
+          .map((p) => p.barcode)
+          .toSet();
+      setState(() {
+        results = [
+          ...local,
+          ...online.where((p) => !known.contains(p.barcode))
+        ];
+        loading = false;
+      });
+    } on ProductLookupException catch (error) {
+      if (!mounted || version != searchVersion) return;
+      setState(() {
+        searchError = error.message;
+        loading = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
+    searchTimer?.cancel();
     search.dispose();
     super.dispose();
   }
@@ -37,27 +99,59 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final barcode = await Navigator.of(context).push<String>(
         MaterialPageRoute(builder: (_) => const _ScannerScreen()));
     if (barcode == null || !mounted) return;
-    final matches = await widget.repository.products(barcode);
-    if (!mounted) return;
-    if (matches.isEmpty) {
+    searchTimer?.cancel();
+    final version = ++searchVersion;
+    search.text = barcode;
+    setState(() {
+      searching = true;
+      loading = true;
+      searchError = null;
+      results = [];
+    });
+    try {
+      final local = await widget.repository.products(barcode);
+      if (!mounted || version != searchVersion) return;
+      if (local.isNotEmpty) {
+        setState(() {
+          results = local;
+          loading = false;
+        });
+        return;
+      }
+      final remote =
+          await widget.repository.findProductByBarcodeOnline(barcode);
+      if (!mounted || version != searchVersion) return;
+      if (remote != null) {
+        setState(() {
+          results = [remote];
+          loading = false;
+        });
+        return;
+      }
+      setState(() => loading = false);
       final created = await showDialog<bool>(
           context: context,
           builder: (_) => _NewProductDialog(
               repository: widget.repository, barcode: barcode));
-      if (created != true || !mounted) return;
+      if (created == true && mounted) onSearchChanged(barcode);
+    } on ProductLookupException catch (error) {
+      if (!mounted || version != searchVersion) return;
+      setState(() {
+        searchError = error.message;
+        loading = false;
+      });
     }
-    search.text = barcode;
-    setState(() => searching = true);
   }
 
-  Future<void> add(String meal) async {
-    final products = await widget.repository.products(search.text);
+  Future<void> add(String meal, {Product? selectedProduct}) async {
+    final products = searching ? results : await widget.repository.products();
     if (!mounted) return;
     await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
         builder: (context) => _AddFoodSheet(
             products: products,
+            initialProduct: selectedProduct,
             meal: meal,
             date: widget.date,
             repository: widget.repository,
@@ -138,8 +232,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   Expanded(
                       child: TextField(
                           controller: search,
-                          onChanged: (v) =>
-                              setState(() => searching = v.isNotEmpty),
+                          onChanged: onSearchChanged,
                           decoration: const InputDecoration(
                               prefixIcon: Icon(Icons.search),
                               hintText: 'Поиск продукта по базе...',
@@ -148,22 +241,31 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   IconButton.filledTonal(
                       onPressed: scan, icon: const Icon(Icons.qr_code_scanner))
                 ]),
-                if (searching)
-                  FutureBuilder<List<Product>>(
-                      future: widget.repository.products(search.text),
-                      builder: (context, snapshot) => Column(children: [
-                            for (final p in snapshot.data ?? <Product>[])
-                              ListTile(
-                                  dense: true,
-                                  title: Text(p.name),
-                                  subtitle:
-                                      Text('${p.kcal.round()} ккал / 100 г'),
-                                  onTap: () => add('Перекус')),
-                            if (snapshot.hasData && snapshot.data!.isEmpty)
-                              const Padding(
-                                  padding: EdgeInsets.all(8),
-                                  child: Text('Продукт не найден'))
-                          ]))
+                if (searching) ...[
+                  if (loading)
+                    const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator()),
+                  for (final p in results)
+                    ListTile(
+                        dense: true,
+                        title: Text(p.name),
+                        subtitle: Text(
+                            '${p.kcal.round()} ккал  •  Б: ${p.protein.toStringAsFixed(1)} г  Ж: ${p.fat.toStringAsFixed(1)} г  У: ${p.carbs.toStringAsFixed(1)} г / 100 г'),
+                        onTap: () => add('Перекус', selectedProduct: p)),
+                  if (searchError != null)
+                    ListTile(
+                        title: Text(searchError!),
+                        subtitle: const Text('Локальные продукты доступны'),
+                        trailing: TextButton(
+                            onPressed: () =>
+                                runSearch(search.text, ++searchVersion),
+                            child: const Text('Повторить'))),
+                  if (!loading && searchError == null && results.isEmpty)
+                    const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Продукты не найдены')),
+                ]
               ])),
           const SizedBox(height: 12),
           for (final meal in ['Завтрак', 'Обед', 'Перекус', 'Ужин'])
@@ -253,11 +355,13 @@ class _MealCard extends StatelessWidget {
 class _AddFoodSheet extends StatefulWidget {
   const _AddFoodSheet(
       {required this.products,
+      this.initialProduct,
       required this.meal,
       required this.date,
       required this.repository,
       required this.onDone});
   final List<Product> products;
+  final Product? initialProduct;
   final String meal;
   final DateTime date;
   final HealthRepository repository;
@@ -268,6 +372,12 @@ class _AddFoodSheet extends StatefulWidget {
 
 class _AddFoodSheetState extends State<_AddFoodSheet> {
   Product? selected;
+  @override
+  void initState() {
+    super.initState();
+    selected = widget.initialProduct;
+  }
+
   final grams = TextEditingController(text: '100');
   @override
   void dispose() {
