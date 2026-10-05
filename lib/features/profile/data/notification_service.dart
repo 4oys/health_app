@@ -11,7 +11,7 @@ class NotificationService {
 
   Future<void> _initialize() async {
     await _plugin.initialize(const InitializationSettings(
-      android: AndroidInitializationSettings('ic_launcher'),
+      android: AndroidInitializationSettings('ic_notification'),
       iOS: DarwinInitializationSettings(
         requestAlertPermission: false,
         requestBadgePermission: false,
