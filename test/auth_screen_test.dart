@@ -20,4 +20,18 @@ void main() {
     expect(find.text('Вход в аккаунт'), findsOneWidget);
     expect(find.byType(TextFormField), findsNWidgets(2));
   });
+
+  testWidgets('Apple-вход на неподдерживаемой платформе объясняет ограничение',
+      (tester) async {
+    await tester.pumpWidget(HealthApp(
+      repository: HealthRepository(),
+      auth: const AuthRepository(),
+      initiallySignedIn: false,
+    ));
+    await tester.ensureVisible(find.text('●  Продолжить с Apple'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('●  Продолжить с Apple'));
+    await tester.pump();
+    expect(find.text('Вход через Apple доступен на iPhone.'), findsOneWidget);
+  });
 }

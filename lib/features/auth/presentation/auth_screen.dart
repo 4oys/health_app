@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:flutter/material.dart';
 import '../../../core/theme.dart';
 import '../data/auth_repository.dart';
@@ -26,6 +28,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool consent = false;
   bool visible = false;
   bool login = false;
+  bool appleLoading = false;
 
   @override
   void dispose() {
@@ -58,6 +61,50 @@ class _AuthScreenState extends State<AuthScreen> {
         name: name.text.trim(), email: email.text.trim(), goal: goal));
     await widget.auth.register(email.text, password.text);
     if (mounted) widget.onComplete();
+  }
+
+  Future<void> appleSignIn() async {
+    if (!Platform.isIOS) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Вход через Apple доступен на iPhone.')));
+      return;
+    }
+    if (!login && !consent) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Подтвердите согласие с условиями использования')));
+      return;
+    }
+    if (appleLoading) return;
+    setState(() => appleLoading = true);
+    try {
+      final account = await widget.auth.signInWithApple();
+      final user = await widget.repository.user();
+      if ((account.name != null && account.name != user.name) ||
+          (account.email != null && account.email != user.email)) {
+        await widget.repository.saveUser(user.copyWith(
+          name: account.name ?? user.name,
+          email: account.email ?? user.email,
+        ));
+      }
+      if (mounted) widget.onComplete();
+    } on SignInWithAppleAuthorizationException catch (error) {
+      if (error.code != AuthorizationErrorCode.canceled && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Не удалось выполнить вход через Apple.')));
+      }
+    } on AppleSignInException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Не удалось выполнить вход через Apple.')));
+      }
+    } finally {
+      if (mounted) setState(() => appleLoading = false);
+    }
   }
 
   @override
@@ -225,10 +272,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   SizedBox(
                       height: 44,
                       child: FilledButton(
-                          onPressed: () => ScaffoldMessenger.of(context)
-                              .showSnackBar(const SnackBar(
-                                  content: Text(
-                                      'Вход через Apple пока недоступен'))),
+                          onPressed: appleLoading ? null : appleSignIn,
                           style: FilledButton.styleFrom(
                               backgroundColor: Colors.black),
                           child: const Text('●  Продолжить с Apple'))),
