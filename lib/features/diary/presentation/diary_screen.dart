@@ -40,20 +40,44 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final version = ++searchVersion;
     setState(() {
       searching = value.trim().isNotEmpty;
-      loading = searching;
+      loading = false;
       searchError = null;
       results = [];
     });
     if (!searching) return;
+    loadLocalProducts(value, version);
+    if (value.trim().length < 2) return;
     searchTimer = Timer(
         const Duration(milliseconds: 700), () => runSearch(value, version));
+  }
+
+  Future<void> loadLocalProducts(String query, int version) async {
+    final local = await widget.repository.products(query);
+    if (!mounted || version != searchVersion) return;
+    setState(() => results = local);
+  }
+
+  void submitSearch() {
+    final query = search.text.trim();
+    if (query.isEmpty) return;
+    searchTimer?.cancel();
+    final version = ++searchVersion;
+    setState(() {
+      searching = true;
+      loading = true;
+      searchError = null;
+    });
+    runSearch(query, version);
   }
 
   Future<void> runSearch(String query, int version) async {
     try {
       final local = await widget.repository.products(query);
       if (!mounted || version != searchVersion) return;
-      setState(() => results = local);
+      setState(() {
+        results = local;
+        loading = query.trim().length >= 2;
+      });
       if (query.trim().length < 2) {
         setState(() => loading = false);
         return;
@@ -233,8 +257,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
                       child: TextField(
                           controller: search,
                           onChanged: onSearchChanged,
-                          decoration: const InputDecoration(
-                              prefixIcon: Icon(Icons.search),
+                          onSubmitted: (_) => submitSearch(),
+                          textInputAction: TextInputAction.search,
+                          keyboardType: TextInputType.text,
+                          decoration: InputDecoration(
+                              prefixIcon: IconButton(
+                                  onPressed: submitSearch,
+                                  icon: const Icon(Icons.search),
+                                  tooltip: 'Искать продукты'),
                               hintText: 'Поиск продукта по базе...',
                               isDense: true))),
                   const SizedBox(width: 8),
@@ -256,10 +286,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   if (searchError != null)
                     ListTile(
                         title: Text(searchError!),
-                        subtitle: const Text('Локальные продукты доступны'),
+                        subtitle: const Text(
+                            'Проверьте подключение и повторите поиск'),
                         trailing: TextButton(
-                            onPressed: () =>
-                                runSearch(search.text, ++searchVersion),
+                            onPressed: submitSearch,
                             child: const Text('Повторить'))),
                   if (!loading && searchError == null && results.isEmpty)
                     const Padding(

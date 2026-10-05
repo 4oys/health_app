@@ -33,9 +33,17 @@ class HealthRepository {
         throw const ProductLookupException(
             'Слишком много запросов. Повторите позже.');
       }
-      if (response.statusCode != 200) {
+      if (response.statusCode == 503) {
         throw const ProductLookupException(
-            'Каталог продуктов временно недоступен.');
+            'Каталог перегружен. Повторите поиск позже.');
+      }
+      if (response.statusCode == 403) {
+        throw const ProductLookupException(
+            'Каталог отклонил запрос. Повторите поиск позже.');
+      }
+      if (response.statusCode != 200) {
+        throw ProductLookupException(
+            'Каталог продуктов временно недоступен (код ${response.statusCode}).');
       }
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
       if (decoded is! Map<String, dynamic>) throw const FormatException();
@@ -55,9 +63,10 @@ class HealthRepository {
 
   Product? _remoteProduct(dynamic value) {
     if (value is! Map<String, dynamic>) return null;
-    final name = (value['product_name_ru'] ?? value['product_name'] ?? '')
-        .toString()
-        .trim();
+    final russianName = (value['product_name_ru'] ?? '').toString().trim();
+    final name = russianName.isNotEmpty
+        ? russianName
+        : (value['product_name'] ?? '').toString().trim();
     final nutrients = value['nutriments'];
     if (name.isEmpty || nutrients is! Map<String, dynamic>) return null;
     double? number(dynamic value) => value is num

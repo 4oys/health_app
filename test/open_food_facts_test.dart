@@ -27,7 +27,8 @@ void main() {
           jsonEncode({
             'products': [sample]
           }),
-          200, headers: {'content-type': 'application/json; charset=utf-8'});
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'});
     }));
     final products = await repository.searchProductsOnline('паста');
     expect(products, hasLength(1));
@@ -66,5 +67,27 @@ void main() {
             http.Response(jsonEncode({'products': []}), 200)));
     expect(await repository.searchProductsOnline('неизвестный'), isEmpty);
   });
-}
 
+  test('пустое русское название не скрывает продукт', () async {
+    final repository = HealthRepository(
+        httpClient: MockClient((request) async => http.Response(
+            jsonEncode({
+              'products': [
+                {...sample, 'product_name_ru': ''}
+              ]
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'})));
+    final products = await repository.searchProductsOnline('паста');
+    expect(products.single.name, 'Ореховая паста');
+  });
+
+  test('перегрузка каталога отображается отдельно', () async {
+    final repository = HealthRepository(
+        httpClient: MockClient((request) async => http.Response('', 503)));
+    expect(
+        () => repository.searchProductsOnline('паста'),
+        throwsA(isA<ProductLookupException>().having(
+            (error) => error.message, 'сообщение', contains('перегружен'))));
+  });
+}
