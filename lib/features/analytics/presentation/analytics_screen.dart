@@ -12,10 +12,12 @@ class AnalyticsScreen extends StatefulWidget {
       {super.key,
       required this.user,
       required this.weights,
-      required this.activity});
+      required this.activity,
+      this.healthConnected = false});
   final UserProfile user;
   final List<WeightRecord> weights;
   final ActivityRecord activity;
+  final bool healthConnected;
   @override
   State<AnalyticsScreen> createState() => _AnalyticsScreenState();
 }
@@ -32,7 +34,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         build: (_) => pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text('Отчёт о здоровье — пример данных',
+                  pw.Text(
+                      widget.healthConnected
+                          ? 'Отчёт о здоровье'
+                          : 'Отчёт о здоровье — пример данных',
                       style: pw.TextStyle(font: bold, fontSize: 24)),
                   pw.SizedBox(height: 20),
                   pw.Text('Имя: ${widget.user.name}',
@@ -71,6 +76,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final bmi =
         HealthCalculations.bmi(widget.user.weightKg, widget.user.heightCm);
     final days = [7, 30, 90, 365][period];
+    final deep = widget.healthConnected ? widget.activity.deepMinutes : 22;
+    final rem = widget.healthConnected ? widget.activity.remMinutes : 25;
+    final light = widget.healthConnected ? widget.activity.lightMinutes : 53;
+    final hasSleepPhases = deep + rem + light > 0;
     final recent = widget.weights
         .where((w) => DateTime.now().difference(w.date).inDays <= days)
         .toList();
@@ -233,29 +242,44 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                       child: _SleepMetric(
-                          'Пульс', '${widget.activity.heartRate} уд/мин'))
+                          'Пульс',
+                          widget.activity.heartRate == 0
+                              ? 'Нет данных'
+                              : '${widget.activity.heartRate} уд/мин'))
                 ]),
                 const SizedBox(height: 16),
-                const Text('Фазы сна — пример', style: TextStyle(fontSize: 12)),
+                Text(widget.healthConnected ? 'Фазы сна' : 'Фазы сна — пример',
+                    style: const TextStyle(fontSize: 12)),
                 const SizedBox(height: 6),
-                const Row(children: [
-                  Expanded(
-                      flex: 22,
-                      child: ColoredBox(
-                          color: AppColors.green, child: SizedBox(height: 9))),
-                  Expanded(
-                      flex: 25,
-                      child: ColoredBox(
-                          color: Color(0xFFA8C2FF),
-                          child: SizedBox(height: 9))),
-                  Expanded(
-                      flex: 53,
-                      child: ColoredBox(
-                          color: Color(0xFFDCE5EE), child: SizedBox(height: 9)))
-                ]),
+                if (hasSleepPhases)
+                  Row(children: [
+                    if (deep > 0)
+                      Expanded(
+                          flex: deep,
+                          child: const ColoredBox(
+                              color: AppColors.green,
+                              child: SizedBox(height: 9))),
+                    if (rem > 0)
+                      Expanded(
+                          flex: rem,
+                          child: const ColoredBox(
+                              color: Color(0xFFA8C2FF),
+                              child: SizedBox(height: 9))),
+                    if (light > 0)
+                      Expanded(
+                          flex: light,
+                          child: const ColoredBox(
+                              color: Color(0xFFDCE5EE),
+                              child: SizedBox(height: 9))),
+                  ]),
                 const SizedBox(height: 12),
-                const Text('● Глубокий 22%     ● Быстрый 25%     ● Лёгкий 53%',
-                    style: TextStyle(fontSize: 11))
+                Text(
+                    widget.healthConnected && !hasSleepPhases
+                        ? 'Нет данных о фазах сна'
+                        : widget.healthConnected
+                            ? '● Глубокий ${widget.activity.deepMinutes} мин     ● Быстрый ${widget.activity.remMinutes} мин     ● Лёгкий ${widget.activity.lightMinutes} мин'
+                            : '● Глубокий 22%     ● Быстрый 25%     ● Лёгкий 53%',
+                    style: const TextStyle(fontSize: 11))
               ])),
           const SizedBox(height: 18),
           WhiteCard(

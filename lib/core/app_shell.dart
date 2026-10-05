@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import '../features/health/data/health_repository.dart';
+import '../features/health/data/health_sync_service.dart';
 import '../features/health/domain/models.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/diary/presentation/diary_screen.dart';
@@ -28,6 +29,8 @@ class _AppShellState extends State<AppShell> {
   ActivityRecord? activity;
   List<WeightRecord> weights = [];
   bool loading = true;
+  bool healthConnected = false;
+  final healthSync = HealthSyncService();
 
   @override
   void initState() {
@@ -36,6 +39,14 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> refresh() async {
+    final enabled = await widget.repository.healthSyncEnabled();
+    if (enabled) {
+      try {
+        await widget.repository.saveActivity(await healthSync.read(date));
+      } catch (_) {
+        // Previously synced records remain available while the provider is unavailable.
+      }
+    }
     final values = await Future.wait<Object>([
       widget.repository.user(),
       widget.repository.entries(date),
@@ -49,7 +60,36 @@ class _AppShellState extends State<AppShell> {
       activity = values[2] as ActivityRecord;
       weights = values[3] as List<WeightRecord>;
       loading = false;
+      healthConnected = enabled;
     });
+  }
+
+  Future<void> toggleHealth(bool enabled) async {
+    if (enabled) {
+      try {
+        final granted = await healthSync.requestAccess();
+        if (!granted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Доступ к данным здоровья не предоставлен')));
+          }
+          return;
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'Не удалось подключить данные здоровья. Проверьте Health Connect или Apple Health.')));
+        }
+        return;
+      }
+    }
+    if (enabled) {
+      await widget.repository.saveActivity(
+          ActivityRecord(date: date, steps: 0, heartRate: 0, sleepMinutes: 0));
+    }
+    await widget.repository.setHealthSyncEnabled(enabled);
+    await refresh();
   }
 
   Future<void> selectDate() async {
@@ -101,6 +141,7 @@ class _AppShellState extends State<AppShell> {
                     user: user,
                     entries: entries,
                     activity: activity!,
+                    healthConnected: healthConnected,
                     date: date,
                     onAddFood: () => setState(() => tab = 1)),
                 DiaryScreen(
@@ -114,9 +155,14 @@ class _AppShellState extends State<AppShell> {
                     },
                     onChange: refresh),
                 AnalyticsScreen(
-                    user: user, weights: weights, activity: activity!),
+                    user: user,
+                    weights: weights,
+                    activity: activity!,
+                    healthConnected: healthConnected),
                 ProfileScreen(
                     repository: widget.repository,
+                    healthConnected: healthConnected,
+                    onHealthChanged: toggleHealth,
                     user: user,
                     onChange: refresh,
                     onSignOut: widget.onSignOut,

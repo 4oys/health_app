@@ -10,10 +10,12 @@ class DashboardScreen extends StatelessWidget {
       required this.entries,
       required this.activity,
       required this.date,
-      required this.onAddFood});
+      required this.onAddFood,
+      this.healthConnected = false});
   final UserProfile user;
   final List<FoodEntry> entries;
   final ActivityRecord activity;
+  final bool healthConnected;
   final DateTime date;
   final VoidCallback onAddFood;
 
@@ -57,8 +59,11 @@ class DashboardScreen extends StatelessWidget {
           Text('Привет, ${user.name}!',
               style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 5),
-          const Text('●  Пример данных активности',
-              style: TextStyle(fontSize: 11, color: AppColors.green)),
+          Text(
+              healthConnected
+                  ? '●  Данные системы здоровья'
+                  : '●  Пример данных активности',
+              style: const TextStyle(fontSize: 11, color: AppColors.green)),
           const SizedBox(height: 20),
           WhiteCard(
               child: Column(children: [
@@ -129,7 +134,9 @@ class DashboardScreen extends StatelessWidget {
                               RichText(
                                   text: TextSpan(children: [
                                 TextSpan(
-                                    text: '${activity.heartRate}',
+                                    text: activity.heartRate == 0
+                                        ? '—'
+                                        : '${activity.heartRate}',
                                     style: const TextStyle(
                                         fontSize: 29,
                                         fontWeight: FontWeight.w800,
@@ -141,8 +148,11 @@ class DashboardScreen extends StatelessWidget {
                               ])),
                               const Text('━━━━╱╲╱╲━━━━',
                                   style: TextStyle(color: AppColors.green)),
-                              const Text('В покое: 64 уд/мин',
-                                  style: TextStyle(fontSize: 11))
+                              Text(
+                                  healthConnected
+                                      ? 'Последнее измерение'
+                                      : 'В покое: 64 уд/мин',
+                                  style: const TextStyle(fontSize: 11))
                             ])))),
             const SizedBox(width: 10),
             Expanded(

@@ -321,6 +321,33 @@ class HealthRepository {
           .map((r) => WeightRecord(
               DateTime.parse(r['date'] as String), (r['kg'] as num).toDouble()))
           .toList();
+  Future<bool> healthSyncEnabled() async {
+    final rows = await (await _db)
+        .query('app_state', where: 'key = ?', whereArgs: ['health_sync']);
+    return rows.isNotEmpty && rows.first['value'] == '1';
+  }
+
+  Future<void> setHealthSyncEnabled(bool enabled) async {
+    await (await _db).insert(
+        'app_state', {'key': 'health_sync', 'value': enabled ? '1' : '0'},
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> saveActivity(ActivityRecord value) async {
+    final key = value.date.toIso8601String().substring(0, 10);
+    final db = await _db;
+    await db.delete('activity_history', where: 'date = ?', whereArgs: [key]);
+    await db.insert('activity_history', {
+      'date': key,
+      'steps': value.steps,
+      'heart_rate': value.heartRate,
+      'sleep_minutes': value.sleepMinutes,
+      'deep_minutes': value.deepMinutes,
+      'light_minutes': value.lightMinutes,
+      'rem_minutes': value.remMinutes,
+    });
+  }
+
   Future<ActivityRecord> activity(DateTime date) async {
     final rows = await (await _db).query('activity_history',
         where: 'date = ?',
@@ -334,6 +361,9 @@ class HealthRepository {
         date: date,
         steps: r['steps'] as int,
         heartRate: r['heart_rate'] as int,
-        sleepMinutes: r['sleep_minutes'] as int);
+        sleepMinutes: r['sleep_minutes'] as int,
+        deepMinutes: r['deep_minutes'] as int,
+        lightMinutes: r['light_minutes'] as int,
+        remMinutes: r['rem_minutes'] as int);
   }
 }

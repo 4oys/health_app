@@ -7,7 +7,7 @@ class HealthDatabase {
   static Future<Database> get instance async =>
       _database ??= await openDatabase(
         join(await getDatabasesPath(), 'health_app.db'),
-        version: 2,
+        version: 3,
         onCreate: (db, version) async {
           await db.execute(
               'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, height_cm REAL NOT NULL, weight_kg REAL NOT NULL, target_kg REAL NOT NULL, goal INTEGER NOT NULL, calorie_target INTEGER NOT NULL)');
@@ -18,7 +18,7 @@ class HealthDatabase {
           await db.execute(
               'CREATE TABLE weight_history (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, kg REAL NOT NULL)');
           await db.execute(
-              'CREATE TABLE activity_history (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, steps INTEGER NOT NULL, heart_rate INTEGER NOT NULL, sleep_minutes INTEGER NOT NULL)');
+              'CREATE TABLE activity_history (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, steps INTEGER NOT NULL, heart_rate INTEGER NOT NULL, sleep_minutes INTEGER NOT NULL, deep_minutes INTEGER NOT NULL DEFAULT 0, light_minutes INTEGER NOT NULL DEFAULT 0, rem_minutes INTEGER NOT NULL DEFAULT 0)');
           await db.execute(
               'CREATE TABLE app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         },
@@ -27,6 +27,16 @@ class HealthDatabase {
             await db.execute(
                 'CREATE TABLE app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
             await db.insert('app_state', {'key': 'seeded', 'value': '1'});
+          }
+          if (oldVersion < 3) {
+            for (final column in [
+              'deep_minutes',
+              'light_minutes',
+              'rem_minutes'
+            ]) {
+              await db.execute(
+                  'ALTER TABLE activity_history ADD COLUMN $column INTEGER NOT NULL DEFAULT 0');
+            }
           }
         },
       );

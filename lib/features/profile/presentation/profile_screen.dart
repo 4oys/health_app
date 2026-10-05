@@ -11,8 +11,12 @@ class ProfileScreen extends StatefulWidget {
       required this.user,
       required this.onChange,
       required this.onSignOut,
-      required this.onDeleteAccount});
+      required this.onDeleteAccount,
+      this.healthConnected = false,
+      this.onHealthChanged});
   final HealthRepository repository;
+  final bool healthConnected;
+  final Future<void> Function(bool)? onHealthChanged;
   final UserProfile user;
   final VoidCallback onChange;
   final VoidCallback onSignOut;
@@ -198,19 +202,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(children: [
                 SwitchListTile(
                     title: const Text('Датчики здоровья'),
-                    subtitle: const Text('Подключение будет доступно позже'),
+                    subtitle: Text(widget.healthConnected
+                        ? 'Данные здоровья подключены'
+                        : 'Подключить Health Connect / Apple Health'),
                     secondary:
                         const Icon(Icons.favorite_outline, color: Colors.red),
-                    value: false,
-                    onChanged: null),
+                    value: widget.healthConnected,
+                    onChanged: widget.onHealthChanged),
                 const Divider(height: 1),
                 SwitchListTile(
                     title: const Text('Смарт-часы'),
-                    subtitle: const Text('Подключение будет доступно позже'),
+                    subtitle: Text(widget.healthConnected
+                        ? 'Данные часов через систему здоровья'
+                        : 'Нужна синхронизация с системой здоровья'),
                     secondary:
                         const Icon(Icons.watch_outlined, color: AppColors.blue),
-                    value: false,
-                    onChanged: null),
+                    value: widget.healthConnected,
+                    onChanged: widget.onHealthChanged),
                 const Divider(height: 1),
                 SwitchListTile(
                     title: const Text('Уведомления'),

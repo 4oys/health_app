@@ -8,6 +8,10 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Здоровье</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Приложение читает шаги, пульс и сон для отображения показателей здоровья.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Приложение использует данные здоровья только с вашего разрешения.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Камера нужна для сканирования штрихкодов продуктов.</string>
 	<key>CFBundleExecutable</key>

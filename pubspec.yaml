@@ -19,6 +19,8 @@ dependencies:
   printing: ^5.14.2
   mobile_scanner: ^7.0.1
   flutter_secure_storage: ^11.2.0
+  health: ^13.3.2
+  permission_handler: 12.0.3
 
 dev_dependencies:
   flutter_test:

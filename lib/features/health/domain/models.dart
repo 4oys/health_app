@@ -91,9 +91,15 @@ class ActivityRecord {
       {required this.date,
       required this.steps,
       required this.heartRate,
-      required this.sleepMinutes});
+      required this.sleepMinutes,
+      this.deepMinutes = 0,
+      this.lightMinutes = 0,
+      this.remMinutes = 0});
   final DateTime date;
   final int steps;
   final int heartRate;
   final int sleepMinutes;
+  final int deepMinutes;
+  final int lightMinutes;
+  final int remMinutes;
 }
