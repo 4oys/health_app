@@ -11,11 +11,13 @@ class DashboardScreen extends StatelessWidget {
       required this.activity,
       required this.date,
       required this.onAddFood,
-      this.healthConnected = false});
+      this.healthConnected = false,
+      this.healthSyncEnabled = false});
   final UserProfile user;
   final List<FoodEntry> entries;
   final ActivityRecord activity;
   final bool healthConnected;
+  final bool healthSyncEnabled;
   final DateTime date;
   final VoidCallback onAddFood;
 
@@ -24,6 +26,10 @@ class DashboardScreen extends StatelessWidget {
     final kcal = entries.fold<double>(0, (sum, e) => sum + e.kcal).round();
     final remaining =
         HealthCalculations.remainingCalories(user.calorieTarget, entries);
+    final macroScale = user.calorieTarget / 2200;
+    final isToday = DateUtils.isSameDay(date, DateTime.now());
+    final meals = ['Завтрак', 'Обед', 'Ужин', 'Перекус']
+        .where((meal) => entries.any((entry) => entry.meal == meal));
     final weekday = [
       'ПОНЕДЕЛЬНИК',
       'ВТОРНИК',
@@ -62,7 +68,9 @@ class DashboardScreen extends StatelessWidget {
           Text(
               healthConnected
                   ? '●  Данные системы здоровья'
-                  : '●  Пример данных активности',
+                  : healthSyncEnabled
+                      ? '●  Синхронизация включена, данных за день нет'
+                      : '●  Пример данных активности',
               style: const TextStyle(fontSize: 11, color: AppColors.green)),
           const SizedBox(height: 20),
           WhiteCard(
@@ -71,7 +79,9 @@ class DashboardScreen extends StatelessWidget {
               const Expanded(
                   child: Text('Баланс энергии',
                       style: TextStyle(fontWeight: FontWeight.w700))),
-              _Badge('Ост. $remaining ккал')
+              _Badge(remaining < 0
+                  ? 'Сверх нормы ${-remaining} ккал'
+                  : 'Ост. $remaining ккал')
             ]),
             const SizedBox(height: 19),
             SizedBox(
@@ -105,12 +115,12 @@ class DashboardScreen extends StatelessWidget {
                     color: AppColors.pale,
                     borderRadius: BorderRadius.circular(13)),
                 child: Row(children: [
-                  _Macro('Белки', HealthCalculations.totalProtein(entries), 140,
-                      AppColors.green),
-                  _Macro('Жиры', HealthCalculations.totalFat(entries), 70,
-                      AppColors.orange),
+                  _Macro('Белки', HealthCalculations.totalProtein(entries),
+                      140 * macroScale, AppColors.green),
+                  _Macro('Жиры', HealthCalculations.totalFat(entries),
+                      70 * macroScale, AppColors.orange),
                   _Macro('Углеводы', HealthCalculations.totalCarbs(entries),
-                      260, const Color(0xFF19B98C)),
+                      260 * macroScale, const Color(0xFF19B98C)),
                 ])),
           ])),
           const SizedBox(height: 20),
@@ -151,7 +161,9 @@ class DashboardScreen extends StatelessWidget {
                               Text(
                                   healthConnected
                                       ? 'Последнее измерение'
-                                      : 'В покое: 64 уд/мин',
+                                      : healthSyncEnabled
+                                          ? 'Данных пока нет'
+                                          : 'В покое: 64 уд/мин',
                                   style: const TextStyle(fontSize: 11))
                             ])))),
             const SizedBox(width: 10),
@@ -190,54 +202,59 @@ class DashboardScreen extends StatelessWidget {
           const SizedBox(height: 20),
           Row(children: [
             Expanded(
-                child: Text('Приёмы пищи сегодня',
+                child: Text(
+                    isToday ? 'Приёмы пищи сегодня' : 'Приёмы пищи за день',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleLarge)),
             TextButton(onPressed: onAddFood, child: const Text('Все >'))
           ]),
-          for (final meal in ['Завтрак', 'Обед'])
-            if (entries.any((e) => e.meal == meal))
-              Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: WhiteCard(
-                      padding: const EdgeInsets.all(13),
-                      child: Row(children: [
-                        CircleAvatar(
-                            radius: 24,
-                            backgroundColor: meal == 'Завтрак'
-                                ? const Color(0xFFFFF3E6)
-                                : const Color(0xFFE5F1FF),
-                            child: Icon(
-                                meal == 'Завтрак'
-                                    ? Icons.wb_twilight
-                                    : Icons.wb_sunny_outlined,
-                                color: meal == 'Завтрак'
-                                    ? AppColors.orange
-                                    : AppColors.blue)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                              Text(meal,
-                                  style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w700)),
-                              Text(
-                                  entries
-                                      .where((e) => e.meal == meal)
-                                      .map((e) => e.product.name)
-                                      .join(', '),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 11))
-                            ])),
-                        Text(
-                            '${entries.where((e) => e.meal == meal).fold<double>(0, (s, e) => s + e.kcal).round()} ккал',
-                            style: const TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w700))
-                      ]))),
+          if (meals.isEmpty)
+            const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: WhiteCard(
+                    padding: EdgeInsets.all(16),
+                    child: Text('Пока нет записей питания за этот день.'))),
+          for (final meal in meals)
+            Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: WhiteCard(
+                    padding: const EdgeInsets.all(13),
+                    child: Row(children: [
+                      CircleAvatar(
+                          radius: 24,
+                          backgroundColor: meal == 'Завтрак'
+                              ? const Color(0xFFFFF3E6)
+                              : const Color(0xFFE5F1FF),
+                          child: Icon(
+                              meal == 'Завтрак'
+                                  ? Icons.wb_twilight
+                                  : Icons.wb_sunny_outlined,
+                              color: meal == 'Завтрак'
+                                  ? AppColors.orange
+                                  : AppColors.blue)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            Text(meal,
+                                style: const TextStyle(
+                                    fontSize: 17, fontWeight: FontWeight.w700)),
+                            Text(
+                                entries
+                                    .where((e) => e.meal == meal)
+                                    .map((e) => e.product.name)
+                                    .join(', '),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11))
+                          ])),
+                      Text(
+                          '${entries.where((e) => e.meal == meal).fold<double>(0, (s, e) => s + e.kcal).round()} ккал',
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w700))
+                    ]))),
           const SizedBox(height: 14),
           PrimaryButton(
               text: 'Добавить приём пищи',

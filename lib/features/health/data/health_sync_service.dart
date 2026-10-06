@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:health/health.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -28,8 +29,13 @@ class HealthSyncService {
 
   Future<ActivityRecord> read(DateTime date) async {
     final start = DateTime(date.year, date.month, date.day);
+    final now = DateTime.now();
+    if (start.isAfter(now)) {
+      return ActivityRecord(
+          date: date, steps: 0, heartRate: 0, sleepMinutes: 0);
+    }
     final end = start.add(const Duration(days: 1));
-    final until = end.isAfter(DateTime.now()) ? DateTime.now() : end;
+    final until = end.isAfter(now) ? now : end;
     await _health.configure();
     final steps = await _health.getTotalStepsInInterval(start, until) ?? 0;
     final values = _health.removeDuplicates(
@@ -57,7 +63,7 @@ class HealthSyncService {
         date: date,
         steps: steps,
         heartRate: heartRate,
-        sleepMinutes: deep + light + rem + unspecified,
+        sleepMinutes: max(deep + light + rem, unspecified),
         deepMinutes: deep,
         lightMinutes: light,
         remMinutes: rem);

@@ -13,11 +13,13 @@ class AnalyticsScreen extends StatefulWidget {
       required this.user,
       required this.weights,
       required this.activity,
-      this.healthConnected = false});
+      this.healthConnected = false,
+      this.healthSyncEnabled = false});
   final UserProfile user;
   final List<WeightRecord> weights;
   final ActivityRecord activity;
   final bool healthConnected;
+  final bool healthSyncEnabled;
   @override
   State<AnalyticsScreen> createState() => _AnalyticsScreenState();
 }
@@ -30,44 +32,42 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final bold = font;
     final bmi =
         HealthCalculations.bmi(widget.user.weightKg, widget.user.heightCm);
-    doc.addPage(pw.Page(
-        build: (_) => pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                      widget.healthConnected
-                          ? 'Отчёт о здоровье'
-                          : 'Отчёт о здоровье — пример данных',
-                      style: pw.TextStyle(font: bold, fontSize: 24)),
-                  pw.SizedBox(height: 20),
-                  pw.Text('Имя: ${widget.user.name}',
-                      style: pw.TextStyle(font: font)),
-                  pw.Text('Рост: ${widget.user.heightCm.toStringAsFixed(0)} см',
-                      style: pw.TextStyle(font: font)),
-                  pw.Text('Вес: ${widget.user.weightKg.toStringAsFixed(1)} кг',
-                      style: pw.TextStyle(font: font)),
-                  pw.Text(
-                      'Целевой вес: ${widget.user.targetKg.toStringAsFixed(1)} кг',
-                      style: pw.TextStyle(font: font)),
-                  pw.Text(
-                      'ИМТ: ${bmi.toStringAsFixed(1)} — ${HealthCalculations.bmiStatus(bmi)}',
-                      style: pw.TextStyle(font: font)),
-                  pw.SizedBox(height: 15),
-                  pw.Text('История веса',
-                      style: pw.TextStyle(font: bold, fontSize: 17)),
-                  for (final w in widget.weights)
-                    pw.Text(
-                        '${w.date.day}.${w.date.month}.${w.date.year}: ${w.kg.toStringAsFixed(1)} кг',
-                        style: pw.TextStyle(font: font)),
-                  pw.SizedBox(height: 15),
-                  pw.Text('Шаги: ${widget.activity.steps}',
-                      style: pw.TextStyle(font: font)),
-                  pw.Text('Пульс: ${widget.activity.heartRate} уд/мин',
-                      style: pw.TextStyle(font: font)),
-                  pw.Text(
-                      'Сон: ${widget.activity.sleepMinutes ~/ 60} ч ${widget.activity.sleepMinutes % 60} мин',
-                      style: pw.TextStyle(font: font)),
-                ])));
+    doc.addPage(pw.MultiPage(
+        build: (_) => [
+              pw.Text(
+                  widget.healthConnected
+                      ? 'Отчёт о здоровье'
+                      : 'Отчёт о здоровье — пример данных',
+                  style: pw.TextStyle(font: bold, fontSize: 24)),
+              pw.SizedBox(height: 20),
+              pw.Text('Имя: ${widget.user.name}',
+                  style: pw.TextStyle(font: font)),
+              pw.Text('Рост: ${widget.user.heightCm.toStringAsFixed(0)} см',
+                  style: pw.TextStyle(font: font)),
+              pw.Text('Вес: ${widget.user.weightKg.toStringAsFixed(1)} кг',
+                  style: pw.TextStyle(font: font)),
+              pw.Text(
+                  'Целевой вес: ${widget.user.targetKg.toStringAsFixed(1)} кг',
+                  style: pw.TextStyle(font: font)),
+              pw.Text(
+                  'ИМТ: ${bmi.toStringAsFixed(1)} — ${HealthCalculations.bmiStatus(bmi)}',
+                  style: pw.TextStyle(font: font)),
+              pw.SizedBox(height: 15),
+              pw.Text('История веса',
+                  style: pw.TextStyle(font: bold, fontSize: 17)),
+              for (final w in widget.weights)
+                pw.Text(
+                    '${w.date.day}.${w.date.month}.${w.date.year}: ${w.kg.toStringAsFixed(1)} кг',
+                    style: pw.TextStyle(font: font)),
+              pw.SizedBox(height: 15),
+              pw.Text('Шаги: ${widget.activity.steps}',
+                  style: pw.TextStyle(font: font)),
+              pw.Text('Пульс: ${widget.activity.heartRate} уд/мин',
+                  style: pw.TextStyle(font: font)),
+              pw.Text(
+                  'Сон: ${widget.activity.sleepMinutes ~/ 60} ч ${widget.activity.sleepMinutes % 60} мин',
+                  style: pw.TextStyle(font: font)),
+            ]));
     return doc.save();
   }
 
@@ -76,9 +76,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final bmi =
         HealthCalculations.bmi(widget.user.weightKg, widget.user.heightCm);
     final days = [7, 30, 90, 365][period];
-    final deep = widget.healthConnected ? widget.activity.deepMinutes : 22;
-    final rem = widget.healthConnected ? widget.activity.remMinutes : 25;
-    final light = widget.healthConnected ? widget.activity.lightMinutes : 53;
+    final deep = widget.healthSyncEnabled ? widget.activity.deepMinutes : 22;
+    final rem = widget.healthSyncEnabled ? widget.activity.remMinutes : 25;
+    final light = widget.healthSyncEnabled ? widget.activity.lightMinutes : 53;
     final hasSleepPhases = deep + rem + light > 0;
     final recent = widget.weights
         .where((w) => DateTime.now().difference(w.date).inDays <= days)
@@ -248,7 +248,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               : '${widget.activity.heartRate} уд/мин'))
                 ]),
                 const SizedBox(height: 16),
-                Text(widget.healthConnected ? 'Фазы сна' : 'Фазы сна — пример',
+                Text(
+                    widget.healthSyncEnabled ? 'Фазы сна' : 'Фазы сна — пример',
                     style: const TextStyle(fontSize: 12)),
                 const SizedBox(height: 6),
                 if (hasSleepPhases)
@@ -274,9 +275,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   ]),
                 const SizedBox(height: 12),
                 Text(
-                    widget.healthConnected && !hasSleepPhases
+                    widget.healthSyncEnabled && !hasSleepPhases
                         ? 'Нет данных о фазах сна'
-                        : widget.healthConnected
+                        : widget.healthSyncEnabled
                             ? '● Глубокий ${widget.activity.deepMinutes} мин     ● Быстрый ${widget.activity.remMinutes} мин     ● Лёгкий ${widget.activity.lightMinutes} мин'
                             : '● Глубокий 22%     ● Быстрый 25%     ● Лёгкий 53%',
                     style: const TextStyle(fontSize: 11))
@@ -293,7 +294,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     'Данные о весе, ИМТ и активности для врача или тренера.'),
                 const SizedBox(height: 14),
                 PrimaryButton(
-                    text: 'Скачать медицинский отчёт',
+                    text: 'Экспортировать отчёт в PDF',
                     icon: Icons.download,
                     onPressed: () =>
                         Printing.layoutPdf(onLayout: (_) => report()))

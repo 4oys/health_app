@@ -207,22 +207,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SwitchListTile(
                     title: const Text('Датчики здоровья'),
                     subtitle: Text(widget.healthConnected
-                        ? 'Данные здоровья подключены'
+                        ? 'Синхронизация включена'
                         : 'Подключить Health Connect / Apple Health'),
                     secondary:
                         const Icon(Icons.favorite_outline, color: Colors.red),
                     value: widget.healthConnected,
                     onChanged: widget.onHealthChanged),
                 const Divider(height: 1),
-                SwitchListTile(
-                    title: const Text('Смарт-часы'),
-                    subtitle: Text(widget.healthConnected
-                        ? 'Данные часов через систему здоровья'
-                        : 'Нужна синхронизация с системой здоровья'),
-                    secondary:
-                        const Icon(Icons.watch_outlined, color: AppColors.blue),
-                    value: widget.healthConnected,
-                    onChanged: widget.onHealthChanged),
+                const ListTile(
+                    title: Text('Смарт-часы'),
+                    subtitle:
+                        Text('Подключите часы в системном приложении здоровья'),
+                    leading: Icon(Icons.watch_outlined, color: AppColors.blue)),
                 const Divider(height: 1),
                 SwitchListTile(
                     title: const Text('Уведомления'),

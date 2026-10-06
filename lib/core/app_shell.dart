@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import '../features/health/data/health_repository.dart';
@@ -31,7 +32,9 @@ class _AppShellState extends State<AppShell> {
   List<WeightRecord> weights = [];
   bool loading = true;
   bool healthConnected = false;
+  bool healthSyncEnabled = false;
   bool notificationsEnabled = false;
+  int refreshVersion = 0;
   final notifications = NotificationService();
   final healthSync = HealthSyncService();
 
@@ -42,31 +45,46 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> refresh() async {
+    final version = ++refreshVersion;
+    final selectedDate = date;
     final enabled = await widget.repository.healthSyncEnabled();
     final notificationsOn = await widget.repository.notificationsEnabled();
-    if (enabled) {
-      try {
-        await widget.repository.saveActivity(await healthSync.read(date));
-      } catch (_) {
-        // Previously synced records remain available while the provider is unavailable.
-      }
-    }
     final values = await Future.wait<Object>([
       widget.repository.user(),
-      widget.repository.entries(date),
-      widget.repository.activity(date),
+      widget.repository.entries(selectedDate),
+      widget.repository.activity(selectedDate),
       widget.repository.weights()
     ]);
-    if (!mounted) return;
+    if (!mounted || version != refreshVersion) return;
     setState(() {
       user = values[0] as UserProfile;
       entries = values[1] as List<FoodEntry>;
       activity = values[2] as ActivityRecord;
       weights = values[3] as List<WeightRecord>;
       loading = false;
-      healthConnected = enabled;
+      healthSyncEnabled = enabled;
+      healthConnected = false;
       notificationsEnabled = notificationsOn;
     });
+    if (!enabled) return;
+    unawaited(_syncHealth(selectedDate, version));
+  }
+
+  Future<void> _syncHealth(DateTime selectedDate, int version) async {
+    try {
+      final updated = await healthSync.read(selectedDate);
+      if (!mounted || version != refreshVersion) return;
+      await widget.repository.saveActivity(updated);
+      if (!mounted || version != refreshVersion) return;
+      setState(() {
+        activity = updated;
+        healthConnected = updated.steps > 0 ||
+            updated.heartRate > 0 ||
+            updated.sleepMinutes > 0;
+      });
+    } catch (_) {
+      // Keep cached records visible when the system provider is unavailable.
+    }
   }
 
   Future<void> toggleHealth(bool enabled) async {
@@ -90,8 +108,15 @@ class _AppShellState extends State<AppShell> {
       }
     }
     if (enabled) {
-      await widget.repository.saveActivity(
-          ActivityRecord(date: date, steps: 0, heartRate: 0, sleepMinutes: 0));
+      try {
+        await widget.repository.saveActivity(await healthSync.read(date));
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Не удалось прочитать данные здоровья')));
+        }
+        return;
+      }
     }
     await widget.repository.setHealthSyncEnabled(enabled);
     await refresh();
@@ -171,6 +196,7 @@ class _AppShellState extends State<AppShell> {
                     entries: entries,
                     activity: activity!,
                     healthConnected: healthConnected,
+                    healthSyncEnabled: healthSyncEnabled,
                     date: date,
                     onAddFood: () => setState(() => tab = 1)),
                 DiaryScreen(
@@ -187,10 +213,11 @@ class _AppShellState extends State<AppShell> {
                     user: user,
                     weights: weights,
                     activity: activity!,
-                    healthConnected: healthConnected),
+                    healthConnected: healthConnected,
+                    healthSyncEnabled: healthSyncEnabled),
                 ProfileScreen(
                     repository: widget.repository,
-                    healthConnected: healthConnected,
+                    healthConnected: healthSyncEnabled,
                     onHealthChanged: toggleHealth,
                     notificationsEnabled: notificationsEnabled,
                     onNotificationsChanged: toggleNotifications,

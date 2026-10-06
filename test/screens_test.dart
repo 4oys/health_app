@@ -61,4 +61,50 @@ void main() {
       expect(failure, isNull, reason: screen.runtimeType.toString());
     }
   });
+
+  testWidgets('Длинная история веса экспортируется в PDF', (tester) async {
+    final date = DateTime(2026, 10, 4);
+    final history = List.generate(
+        120,
+        (index) => WeightRecord(
+            date.subtract(Duration(days: index)), 72 + index / 10));
+    await tester.pumpWidget(MaterialApp(
+        theme: buildTheme(),
+        home: AnalyticsScreen(
+            user: const UserProfile(),
+            weights: history,
+            activity: ActivityRecord(
+                date: date, steps: 8000, heartRate: 70, sleepMinutes: 450))));
+    final dynamic state = tester.state(find.byType(AnalyticsScreen));
+    final List<int> bytes = await state.report();
+    expect(bytes.take(4).toList(), [37, 80, 68, 70]);
+  });
+
+  testWidgets('Профиль не переполняется с крупным системным шрифтом',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MaterialApp(
+        theme: buildTheme(),
+        builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(1.5)),
+            child: child!),
+        home: Scaffold(
+            body: ProfileScreen(
+                repository: HealthRepository(),
+                user: const UserProfile(),
+                onChange: () {},
+                onSignOut: () {},
+                onDeleteAccount: () async {}))));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    for (var i = 0; i < 4; i++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -450));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    }
+  });
 }
