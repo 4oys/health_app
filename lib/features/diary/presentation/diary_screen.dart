@@ -185,6 +185,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
   @override
   Widget build(BuildContext context) {
     final kcal = widget.entries.fold<double>(0, (s, e) => s + e.kcal).round();
+    final isToday = DateUtils.isSameDay(widget.date, DateTime.now());
     final first = DateTime(widget.date.year, widget.date.month, widget.date.day)
         .subtract(Duration(days: widget.date.weekday - 1));
     return ListView(
@@ -226,9 +227,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
               padding: const EdgeInsets.all(14),
               child: Column(children: [
                 Row(children: [
-                  const Expanded(
-                      child: Text('Итого за сегодня',
-                          maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Expanded(
+                      child: Text(
+                          isToday ? 'Итого за сегодня' : 'Итого за день',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis)),
                   Flexible(
                       child: Text('$kcal / ${widget.user.calorieTarget} ккал',
                           maxLines: 1,
@@ -271,6 +274,35 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   IconButton.filledTonal(
                       onPressed: scan, icon: const Icon(Icons.qr_code_scanner))
                 ]),
+                const SizedBox(height: 8),
+                Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          const Text('Быстро:',
+                              style: TextStyle(
+                                  fontSize: 11, color: AppColors.muted)),
+                          for (final item in const [
+                            ('Овсянка', 'Овсяная'),
+                            ('Куриная грудка', 'Куриная грудка'),
+                            ('Банан', 'Банан')
+                          ])
+                            ActionChip(
+                                label: Text(item.$1),
+                                labelStyle: const TextStyle(fontSize: 11),
+                                labelPadding:
+                                    const EdgeInsets.symmetric(horizontal: 3),
+                                padding: EdgeInsets.zero,
+                                visualDensity: VisualDensity.compact,
+                                backgroundColor: AppColors.mint,
+                                onPressed: () {
+                                  search.text = item.$2;
+                                  onSearchChanged(item.$2);
+                                })
+                        ])),
                 if (searching) ...[
                   if (loading)
                     const Padding(
@@ -330,6 +362,12 @@ class _MealCard extends StatelessWidget {
       child: ExpansionTile(
         initiallyExpanded: entries.isNotEmpty,
         tilePadding: EdgeInsets.zero,
+        trailing: entries.isEmpty
+            ? IconButton(
+                onPressed: onAdd,
+                icon: const Icon(Icons.add_circle_outline),
+                tooltip: 'Добавить в ${meal.toLowerCase()}')
+            : null,
         leading: CircleAvatar(
             backgroundColor: AppColors.mint,
             child: Icon(
