@@ -13,3 +13,7 @@ android/.gradle/
 android/local.properties
 ios/Pods/
 *.log
+
+# Дизайн-макеты остаются локально; логотип и иконки приложения отслеживаются.
+/*.png
+!/лого.png
